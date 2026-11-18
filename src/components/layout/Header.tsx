@@ -644,7 +644,7 @@ export function Header() {
           aria-controls="mobile-nav-drawer"
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
         >
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {mobileOpen ? <X aria-hidden="true" className="h-6 w-6" /> : <Menu aria-hidden="true" className="h-6 w-6" />}
         </button>
       </div>
 
@@ -664,6 +664,7 @@ export function Header() {
         role="dialog"
         aria-modal="true"
         aria-label="Mobile navigation"
+        aria-hidden={!mobileOpen}
         className={cn(
           'fixed inset-y-0 left-0 z-50 w-[85%] max-w-sm overflow-y-auto bg-[#26215C] shadow-2xl transition-transform duration-300 ease-in-out md:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
@@ -677,7 +678,7 @@ export function Header() {
             className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5" />
+            <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
         <div className="space-y-1 px-4 pb-6 pt-4">
@@ -711,7 +712,7 @@ export function Header() {
             className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-widest text-slate-300 transition-colors hover:bg-white/10"
           >
             Categories
-            <ChevronDown className={cn('h-4 w-4 transition-transform', mobileCategoriesOpen && 'rotate-180')} />
+            <ChevronDown aria-hidden="true" className={cn('h-4 w-4 transition-transform', mobileCategoriesOpen && 'rotate-180')} />
           </button>
           {mobileCategoriesOpen && activeCategory && (
             <div id="mobile-category-menu" className="space-y-3 rounded-lg bg-white/5 p-3">

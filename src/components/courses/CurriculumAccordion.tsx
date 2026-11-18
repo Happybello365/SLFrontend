@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useId } from 'react';
 import { ChevronDown, Play, Clock, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CourseModule, Lesson } from '@/types';
@@ -229,6 +229,8 @@ export function CurriculumAccordion({
     return initial;
   });
 
+  const baseId = useId();
+
   const stats = useMemo(() => {
     let totalLectures = 0;
     let totalDurationSecs = 0;
@@ -303,29 +305,37 @@ export function CurriculumAccordion({
               ? Math.round((completedCount / lectureCount) * 100)
               : 0;
 
+          const headerId = `${baseId}-header-${mod.id}`;
+          const panelId = `${baseId}-panel-${mod.id}`;
+
           return (
             <div key={mod.id}>
               {/* Section header */}
-              <button
-                type="button"
-                onClick={() => toggleSection(mod.id)}
-                aria-expanded={isOpen}
-                className="flex w-full items-center gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100"
-              >
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 flex-shrink-0 text-ink-500 transition-transform duration-200',
-                    isOpen && 'rotate-180',
-                  )}
-                />
-                <span className="flex-1 text-sm font-semibold text-ink-900">
-                  {mod.title}
-                </span>
-                <span className="hidden text-xs text-ink-500 sm:inline">
-                  {lectureCount} lecture{lectureCount !== 1 ? 's' : ''} &middot;{' '}
-                  {formatSectionDuration(sectionSecs)}
-                </span>
-              </button>
+              <h3>
+                <button
+                  id={headerId}
+                  type="button"
+                  onClick={() => toggleSection(mod.id)}
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  className="flex w-full items-center gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100"
+                >
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cn(
+                      'h-4 w-4 flex-shrink-0 text-ink-500 transition-transform duration-200',
+                      isOpen && 'rotate-180',
+                    )}
+                  />
+                  <span className="flex-1 text-sm font-semibold text-ink-900">
+                    {mod.title}
+                  </span>
+                  <span className="hidden text-xs text-ink-500 sm:inline">
+                    {lectureCount} lecture{lectureCount !== 1 ? 's' : ''} &middot;{' '}
+                    {formatSectionDuration(sectionSecs)}
+                  </span>
+                </button>
+              </h3>
 
               {/* Per-module progress */}
               <div className="flex items-center gap-2 bg-ink-50 px-4 pb-3">
@@ -349,7 +359,12 @@ export function CurriculumAccordion({
 
               {/* Lessons list */}
               {isOpen && (
-                <ul className="animate-fade-in">
+                <ul
+                  id={panelId}
+                  role="region"
+                  aria-labelledby={headerId}
+                  className="animate-fade-in"
+                >
                   {mod.lessons.map((lesson) => (
                     <li
                       key={lesson.id}
