@@ -8,7 +8,7 @@ import {
   cn, courseTotalMins, formatUsdc, levelChip,
 } from '@/lib/utils';
 import { useIsWishlisted, useWishlistStore } from '@/lib/hooks/use-wishlist-store';
-import { useCompareStore } from '@/lib/hooks/use-compare-store';
+import { useCompareStore, MAX_COMPARE } from '@/lib/hooks/use-compare-store';
 import { useHoverPrefetch } from '@/lib/hooks/useHoverPrefetch';
 import type { Course } from '@/types';
 
@@ -49,7 +49,7 @@ function CourseCardComponent({
 
   const isWishlisted  = useIsWishlisted(course.id);
   const toggleWishlistId = useWishlistStore((state) => state.toggle);
-  const isComparing = useCompareStore((state) => state.isComparing(course.id));
+  const isComparing = useCompareStore((state) => state.courses.some((c) => c.id === course.id));
   const addToCompare = useCompareStore((state) => state.add);
   const removeFromCompare = useCompareStore((state) => state.remove);
   const compareCount = useCompareStore((state) => state.courses.length);
@@ -238,6 +238,30 @@ function CourseCardComponent({
               </>
             )}
           </div>
+
+          {/* Compare checkbox */}
+          {(() => {
+            const atLimit = compareCount >= MAX_COMPARE && !isComparing;
+            return (
+              <label
+                className={cn(
+                  'flex items-center gap-1.5 mt-3 text-xs select-none',
+                  atLimit ? 'text-ink-300 cursor-not-allowed' : 'text-ink-500 cursor-pointer',
+                )}
+                onClick={(e) => e.preventDefault()}
+              >
+                <input
+                  type="checkbox"
+                  checked={isComparing}
+                  disabled={atLimit}
+                  onChange={toggleCompare}
+                  className="accent-saffron-500 disabled:opacity-40"
+                  aria-label={`Compare ${course.title}`}
+                />
+                {atLimit ? `Max ${MAX_COMPARE} reached` : 'Compare'}
+              </label>
+            );
+          })()}
         </div>
       </article>
     </Link>

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { X } from 'lucide-react';
-import { useCompareStore } from '@/lib/hooks/use-compare-store';
+import { useCompareStore, MAX_COMPARE } from '@/lib/hooks/use-compare-store';
 import { cn } from '@/lib/utils';
 
 const BLUR_DATA_URL =
@@ -23,7 +23,7 @@ export function CompareBar() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1 overflow-x-auto">
             <span className="text-sm font-semibold text-ink-900 whitespace-nowrap">
-              Compare ({courses.length}/3)
+              Compare ({courses.length}/{MAX_COMPARE})
             </span>
             <div className="flex gap-3">
               {courses.map((course) => (

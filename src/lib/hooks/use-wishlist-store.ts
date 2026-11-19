@@ -56,6 +56,34 @@ export const useWishlistStore = create<WishlistStore>()(
   ),
 );
 
+// ---------------------------------------------------------------------------
+// Cross-tab synchronisation
+//
+// Zustand 4's persist middleware writes to localStorage but never subscribes
+// to the browser 'storage' event, so a toggle made in Tab A is invisible to
+// Tab B's in-memory store until the user does a hard refresh.
+//
+// We register a single module-level listener that calls rehydrate() whenever
+// another browsing context writes to (or clears) our key.  Attaching at
+// module load — not inside a component effect — means the listener lives for
+// the full lifetime of the page, independent of which components are mounted.
+//
+// 'storage' events are only dispatched to *other* windows/tabs that share the
+// same origin, so this callback never fires for the tab that made the change.
+//
+// Guard: typeof window check keeps this inert in SSR and in test environments
+// that do not expose a global window object.
+// ---------------------------------------------------------------------------
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    // event.key is null when Storage.clear() is called; treat that as a
+    // signal to rehydrate too, since it would wipe our persisted key.
+    if (event.key === null || event.key === STORAGE_KEY) {
+      useWishlistStore.persist.rehydrate();
+    }
+  });
+}
+
 /**
  * True once the persisted wishlist has been read back from localStorage.
  *

@@ -4,12 +4,9 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Check, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
-
-type DeleteAccountFormValues = {
-  understood: boolean;
-  password: string;
-};
+import { deleteAccountSchema, type DeleteAccountFormValues } from '@/lib/validations/delete-account';
 
 type DeleteAccountModalProps = {
   open: boolean;
@@ -36,6 +33,7 @@ export default function DeleteAccountModal({ open, onClose }: DeleteAccountModal
     trigger,
     formState: { errors, isSubmitting },
   } = useForm<DeleteAccountFormValues>({
+    resolver: zodResolver(deleteAccountSchema),
     defaultValues: { understood: false, password: '' },
     mode: 'onSubmit',
   });
@@ -164,7 +162,7 @@ export default function DeleteAccountModal({ open, onClose }: DeleteAccountModal
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 rounded border-ink-300 text-red-600 focus:ring-red-500"
-                    {...register('understood', { required: 'Please confirm that you understand.' })}
+                    {...register('understood')}
                   />
                   <span>I understand that deleting my account is permanent.</span>
                 </label>
@@ -186,7 +184,7 @@ export default function DeleteAccountModal({ open, onClose }: DeleteAccountModal
                   autoComplete="current-password"
                   className="input"
                   aria-invalid={!!errors.password}
-                  {...register('password', { required: 'Current password is required.' })}
+                  {...register('password')}
                 />
                 {errors.password && <p className="mt-2 text-xs text-red-600" role="alert">{errors.password.message}</p>}
                 {formError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{formError}</p>}

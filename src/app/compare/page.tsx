@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { X, Star, Clock, BookOpen, Award, User } from 'lucide-react';
-import { useCompareStore } from '@/lib/hooks/use-compare-store';
+import { useCompareStore, MAX_COMPARE } from '@/lib/hooks/use-compare-store';
 import { formatUsdc, courseTotalMins, cn } from '@/lib/utils';
 
 const BLUR_DATA_URL =
@@ -36,7 +36,7 @@ export default function ComparePage() {
           <div>
             <h1 className="section-heading mb-1">Compare Courses</h1>
             <p className="text-sm text-ink-400">
-              Compare up to 3 courses side by side
+              Compare up to {MAX_COMPARE} courses side by side
             </p>
           </div>
           <div className="flex gap-2">
