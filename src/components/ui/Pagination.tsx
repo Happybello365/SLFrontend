@@ -146,7 +146,11 @@ export function Pagination({
       </button>
 
       {/* ── Mobile label ── */}
-      <span className="sm:hidden px-3 py-1.5 text-sm text-ink-600">
+      <span
+        className="sm:hidden px-3 py-1.5 text-sm text-ink-600"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         Page {activePage} of {finalTotalPages}
       </span>
 

@@ -91,6 +91,7 @@ function ToastCard({
   return (
     <div
       role={toast.role}
+      aria-atomic="true"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -150,11 +151,37 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const visibleToasts = toasts.slice(0, MAX_VISIBLE_TOASTS);
 
+  // Split toasts by politeness so alert-role toasts land in an assertive
+  // region (interrupts the screen reader immediately) and status-role toasts
+  // land in a polite region (waits for the reader to finish its current job).
+  // Both regions are aria-atomic so the full title + description is read as
+  // one announcement rather than individual DOM mutations.
+  // The regions are always mounted so the browser registers them before any
+  // toast is added — adding content to an unmounted live region fires no
+  // announcement.
+  const assertiveToasts = visibleToasts.filter((t) => t.role === 'alert');
+  const politeToasts = visibleToasts.filter((t) => t.role === 'status');
+
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3" aria-live="polite" aria-label="Notifications">
-        {visibleToasts.map((toast) => (
+      {/* Assertive region – error toasts that need immediate interruption */}
+      <div
+        aria-live="assertive"
+        aria-atomic="true"
+        className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3"
+      >
+        {assertiveToasts.map((toast) => (
+          <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
+        ))}
+      </div>
+      {/* Polite region – success / warning / info toasts */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3"
+      >
+        {politeToasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}
       </div>
