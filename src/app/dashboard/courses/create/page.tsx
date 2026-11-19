@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, AlertCircle, Upload } from 'lucide-react';
-import { registerCourseOnChain } from '@/lib/stellar/contract';
+import { registerCourseOnChain, UserRejectedError } from '@/lib/stellar/contract';
 import { coursesApi, uploadsApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
 import { generateCourseId, usdcToStroops } from '@/lib/utils';
@@ -34,6 +34,7 @@ export default function CreateCoursePage() {
   const [loading,     setLoading]     = useState(false);
   const [txStep,      setTxStep]      = useState('');
   const [error,       setError]       = useState<string | null>(null);
+  const [rejected,    setRejected]    = useState(false);
 
   const courseId = generateCourseId(category || 'COURSE');
 
@@ -53,6 +54,7 @@ export default function CreateCoursePage() {
     e.preventDefault();
     if (!address) return;
     setError(null);
+    setRejected(false);
     setLoading(true);
 
     try {
@@ -84,7 +86,12 @@ export default function CreateCoursePage() {
 
       router.push(`/dashboard/instructor`);
     } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      if (err instanceof UserRejectedError) {
+        setRejected(true);
+        setError('You rejected the signing request in Freighter. Click "Register course" again when you\'re ready.');
+      } else {
+        setError(err?.message ?? 'Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
       setTxStep('');
@@ -105,9 +112,17 @@ export default function CreateCoursePage() {
       </p>
 
       {error && (
-        <div className="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 flex gap-3">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div
+          role="alert"
+          data-testid={rejected ? 'rejected-error' : 'create-error'}
+          className={`mb-5 p-4 rounded-xl border flex gap-3 ${
+            rejected
+              ? 'bg-yellow-50 border-yellow-200'
+              : 'bg-red-50 border-red-100'
+          }`}
+        >
+          <AlertCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${rejected ? 'text-yellow-500' : 'text-red-500'}`} />
+          <p className={`text-sm ${rejected ? 'text-yellow-800' : 'text-red-700'}`}>{error}</p>
         </div>
       )}
 

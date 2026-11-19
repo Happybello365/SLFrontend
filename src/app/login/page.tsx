@@ -1,15 +1,24 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AxiosError } from 'axios';
-import { Eye, EyeOff, Facebook, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, ExternalLink, Facebook, Loader2, RefreshCw, Wallet } from 'lucide-react';
 import { authApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
 import { loginSchema, type LoginFormValues } from '@/lib/validations/login';
+import { isFreighterInstalled, connectFreighter, signNonce } from '@/lib/stellar/freighter';
+
+const FREIGHTER_INSTALL_URL = 'https://freighter.app';
+// The network passphrase used when signing nonces. Matches the value in contract.ts.
+const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet';
+const NONCE_PASSPHRASE =
+  STELLAR_NETWORK === 'mainnet'
+    ? 'Public Global Stellar Network ; September 2015'
+    : 'Test SDF Network ; September 2015';
 
 function GoogleIcon() {
   return (
@@ -31,6 +40,175 @@ function GoogleIcon() {
         fill="#EA4335"
       />
     </svg>
+  );
+}
+
+/**
+ * Probe states for the Freighter extension check.
+ * - `checking`     – initial probe in progress (shows a spinner)
+ * - `not_installed` – isFreighterInstalled() resolved false
+ * - `installed`    – extension present, ready to connect
+ */
+type FreighterProbeState = 'checking' | 'not_installed' | 'installed';
+
+/**
+ * Renders the Freighter wallet connect section of the login page.
+ *
+ * On mount it probes for the extension. If missing it shows an install banner
+ * with a link to freighter.app and a "Check again" button that re-runs the
+ * probe without a full page reload. If present it shows a "Connect Wallet"
+ * button that runs the nonce-sign auth flow.
+ */
+function WalletConnectSection() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const setAuth = useAuthStore((state) => state.setAuth);
+
+  const [probe, setProbe]         = useState<FreighterProbeState>('checking');
+  const [connecting, setConnecting] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+
+  // Keep a ref so the async probe can bail out after unmount.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const runProbe = useCallback(async () => {
+    setProbe('checking');
+    setWalletError(null);
+    const installed = await isFreighterInstalled();
+    if (!mountedRef.current) return;
+    setProbe(installed ? 'installed' : 'not_installed');
+  }, []);
+
+  // Probe once on mount.
+  useEffect(() => { runProbe(); }, [runProbe]);
+
+  const handleConnectWallet = async () => {
+    setWalletError(null);
+    setConnecting(true);
+    try {
+      // 1. Ask Freighter for the public key (triggers the access popup if needed).
+      const address = await connectFreighter();
+
+      // 2. Fetch a one-time nonce from the backend.
+      const nonce = await authApi.getNonce(address);
+
+      // 3. Ask Freighter to sign the nonce — proves key ownership without a tx.
+      const signedNonce = await signNonce(nonce, NONCE_PASSPHRASE);
+
+      // 4. Exchange the signed nonce for an access token.
+      const { accessToken, user } = await authApi.login({
+        stellarAddress: address,
+        signedNonce,
+        signature: signedNonce,
+      });
+
+      setAuth(address, accessToken, user);
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl ?? '/dashboard');
+    } catch (err: any) {
+      if (!mountedRef.current) return;
+      const raw: string = err?.message ?? '';
+      // Freighter reports declined access as an error message containing
+      // "User declined" or similar. Surface a friendlier version.
+      if (/declined|rejected|cancel/i.test(raw)) {
+        setWalletError('You declined the wallet access request. Click "Connect Wallet" to try again.');
+      } else {
+        setWalletError(raw || 'Wallet connection failed. Please try again.');
+      }
+    } finally {
+      if (mountedRef.current) setConnecting(false);
+    }
+  };
+
+  if (probe === 'checking') {
+    return (
+      <div
+        data-testid="freighter-checking"
+        className="flex items-center gap-2 rounded-xl border border-[#D3D0F2] px-4 py-3 text-sm text-[#554F99]"
+      >
+        <Loader2 className="h-4 w-4 animate-spin text-[#7F77DD]" aria-hidden="true" />
+        Checking for Freighter wallet…
+      </div>
+    );
+  }
+
+  if (probe === 'not_installed') {
+    return (
+      <div
+        data-testid="freighter-not-installed"
+        role="alert"
+        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+      >
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-amber-800">Freighter wallet not found</p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              Install the Freighter browser extension to sign in with your Stellar wallet.
+            </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <a
+                href={FREIGHTER_INSTALL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="freighter-install-link"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                Install Freighter
+              </a>
+              <button
+                type="button"
+                onClick={runProbe}
+                data-testid="freighter-retry-probe"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50"
+              >
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                Check again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // probe === 'installed'
+  return (
+    <div data-testid="freighter-installed">
+      {walletError && (
+        <p
+          role="alert"
+          data-testid="wallet-error"
+          className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
+        >
+          {walletError}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={handleConnectWallet}
+        disabled={connecting}
+        data-testid="wallet-connect-button"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] px-4 py-2.5 text-sm font-medium text-[#26215C] hover:bg-[#EEEDFE] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {connecting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Connecting wallet…
+          </>
+        ) : (
+          <>
+            <Wallet className="h-4 w-4" aria-hidden="true" />
+            Connect Wallet
+          </>
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -206,6 +384,15 @@ function LoginForm() {
               Facebook
             </button>
           </div>
+
+          <div className="relative py-2">
+            <div className="h-px bg-[#E0DEFA]" />
+            <span className="absolute left-1/2 top-0 -translate-x-1/2 bg-white px-3 text-xs font-medium text-[#6B66A6]">
+              or use your wallet
+            </span>
+          </div>
+
+          <WalletConnectSection />
         </fieldset>
       </form>
 
