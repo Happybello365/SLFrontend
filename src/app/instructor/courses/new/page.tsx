@@ -12,6 +12,10 @@ import {
 import { coursesApi, uploadsApi, lessonsApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
 import { cn, generateCourseId, usdcToStroops } from '@/lib/utils';
+import {
+  classifyFreighterError,
+  type ClassifiedFreighterError,
+} from '@/lib/wallet/freighterErrors';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -819,6 +823,11 @@ export default function NewCoursePage() {
   const [saved,   setSaved]   = useState(0);
   const [data,    setData]    = useState<CourseFormData>(INITIAL_DATA);
   const [errors,  setErrors]  = useState<ValidationErrors>({});
+  // Separate structured state for the Stellar/Freighter step so the UI can
+  // distinguish rejected signatures, on-chain submission failures and
+  // network errors (#208). `error` (below) remains the generic string
+  // banner for every OTHER step.
+  const [chainError, setChainError] = useState<ClassifiedFreighterError | null>(null);
   const [loading, setLoading] = useState(false);
   const [txStep,  setTxStep]  = useState('');
   const [error,   setError]   = useState<string | null>(null);
@@ -868,6 +877,7 @@ export default function NewCoursePage() {
   const handlePublish = async () => {
     if (!address) return;
     setError(null);
+    setChainError(null);
     setLoading(true);
 
     try {
@@ -909,7 +919,16 @@ export default function NewCoursePage() {
       localStorage.removeItem('sorobanlard_course_draft');
       router.push('/dashboard/instructor');
     } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      // When the Stellar registration step is wired in, its failures reach
+      // this catch with messages the Freighter classifier recognises; split
+      // them off into the structured `chainError` banner so each failure
+      // mode gets its own actionable prompt (#208).
+      const classified = classifyFreighterError(err);
+      if (classified.kind !== 'unknown') {
+        setChainError(classified);
+      } else {
+        setError(err?.message ?? 'Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
       setTxStep('');
@@ -941,6 +960,31 @@ export default function NewCoursePage() {
           <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-red-700">{error}</p>
           <button type="button" onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Stellar / Freighter error banner (#208) — distinguishes rejected
+          signatures, on-chain submission failures and network errors, each
+          with an actionable next step. */}
+      {chainError && (
+        <div
+          role="alert"
+          data-testid={`chain-error-${chainError.kind}`}
+          className="mb-5 p-4 rounded-xl bg-amber-50 border border-amber-200 flex gap-3"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-900">{chainError.message}</p>
+            <p className="mt-1 text-xs text-amber-700">{chainError.action}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setChainError(null)}
+            className="ml-auto text-amber-500 hover:text-amber-700"
+            aria-label="Dismiss"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>

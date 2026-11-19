@@ -7,6 +7,15 @@ interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
   currentUserId?: string | null;
   currentUserEntry?: LeaderboardEntry | null;
+  /** True while the first fetch is in flight. Distinguished from the empty state. */
+  isLoading?: boolean;
+  /**
+   * Set when a fetch failed. Distinguished from "no users yet". When present
+   * the table shows a retry button if `onRetry` is provided.
+   */
+  error?: Error | string | null;
+  /** Invoked when the user clicks the retry affordance in the error state. */
+  onRetry?: () => void;
 }
 
 const MEDAL: Record<number, { emoji: string; label: string; rowClass: string; rankClass: string }> = {
@@ -134,10 +143,68 @@ function TableRow({
   );
 }
 
+function LoadingState() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="leaderboard-loading"
+      className="flex flex-col items-center gap-3 py-16 text-sm text-ink-500"
+    >
+      <div
+        className="h-5 w-5 animate-spin rounded-full border-2 border-ink-200 border-t-[#7F77DD]"
+        aria-hidden="true"
+      />
+      <span>Loading the leaderboard…</span>
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div
+      role="alert"
+      data-testid="leaderboard-error"
+      className="flex flex-col items-center gap-3 py-16 px-4 text-center"
+    >
+      <p className="text-sm font-medium text-ink-900">Couldn&apos;t load the leaderboard.</p>
+      <p className="max-w-sm text-xs text-ink-500">{message}</p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-1 inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-1.5 text-xs font-semibold text-ink-900 shadow-sm hover:bg-ink-50 focus:outline-none focus:ring-2 focus:ring-[#7F77DD]"
+          aria-label="Retry loading leaderboard"
+        >
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div
+      role="status"
+      data-testid="leaderboard-empty"
+      className="flex flex-col items-center gap-2 py-16 text-center"
+    >
+      <p className="text-sm font-medium text-ink-900">No ranked learners yet.</p>
+      <p className="max-w-sm text-xs text-ink-400">
+        Complete a lesson or extend your streak to appear on the leaderboard.
+      </p>
+    </div>
+  );
+}
+
 export function LeaderboardTable({
   entries,
   currentUserId,
   currentUserEntry,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: LeaderboardTableProps) {
   const isCurrentUser = (entry: LeaderboardEntry) =>
     !!currentUserId && entry.userId === currentUserId;
@@ -147,8 +214,42 @@ export function LeaderboardTable({
     ? entries.some((e) => e.userId === currentUserEntry.userId)
     : false;
 
-  return (
+  const Shell = ({ children }: { children: React.ReactNode }) => (
     <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm">
+      {children}
+    </div>
+  );
+
+  // The three non-data states are mutually exclusive and distinguished, so a
+  // screen reader (and a sighted user) can tell loading, failure, and
+  // actually-empty apart (#206).
+  if (isLoading) {
+    return (
+      <Shell>
+        <LoadingState />
+      </Shell>
+    );
+  }
+
+  if (error) {
+    const message = typeof error === 'string' ? error : (error.message || 'Please try again.');
+    return (
+      <Shell>
+        <ErrorState message={message} onRetry={onRetry} />
+      </Shell>
+    );
+  }
+
+  if (entries.length === 0 && !currentUserEntry) {
+    return (
+      <Shell>
+        <EmptyState />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[38rem]" role="table">
           <thead>
@@ -214,12 +315,6 @@ export function LeaderboardTable({
           </tbody>
         </table>
       </div>
-
-      {entries.length === 0 && (
-        <div className="py-16 text-center text-sm text-ink-400">
-          No data for this period yet. Keep learning!
-        </div>
-      )}
-    </div>
+    </Shell>
   );
 }
