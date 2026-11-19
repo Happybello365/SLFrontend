@@ -62,8 +62,11 @@ export function QuizComponent({
   const [orderedQuestions, setOrderedQuestions] = useState<QuizQuestion[]>(() =>
     randomizeQuestions ? shuffleQuestions(questions) : questions,
   );
+  // Screen-reader announcements for question transitions + timer warnings (#218).
+  const [liveMessage, setLiveMessage] = useState('');
 
   const feedbackRef = useRef<HTMLDivElement | null>(null);
+  const warnedRef = useRef(false);
 
   // Keep the order in sync with the props, re-rolling when randomization is
   // toggled on so an in-flight attempt is not reordered mid-quiz.
@@ -113,6 +116,27 @@ export function QuizComponent({
     onExpire: handleTimeUp,
   });
 
+  // Announce question transitions so screen-reader users know the current
+  // slot without having to re-scan the whole panel (#218).
+  useEffect(() => {
+    if (showResults || total === 0) return;
+    setLiveMessage(`Question ${currentIndex + 1} of ${total}`);
+  }, [currentIndex, total, showResults]);
+
+  // Announce the timer warning exactly once per attempt — not every tick —
+  // so SR users hear a single clear "time is running low" (#218).
+  useEffect(() => {
+    if (!isActive || showResults) return;
+    if (isWarning && !warnedRef.current) {
+      warnedRef.current = true;
+      setLiveMessage(
+        `Time is running low: ${Math.max(0, Math.floor(secondsLeft))} seconds left`,
+      );
+    } else if (!isWarning) {
+      warnedRef.current = false;
+    }
+  }, [isWarning, isActive, showResults, secondsLeft]);
+
   const handleToggleOption = useCallback(
     (optionId: string) => {
       if (!question || isSubmitted) return;
@@ -155,6 +179,8 @@ export function QuizComponent({
     setAnswers({});
     setSubmitted({});
     setShowResults(false);
+    setLiveMessage('');
+    warnedRef.current = false;
 
     if (randomizeQuestions) {
       setOrderedQuestions(shuffleQuestions(questions));
@@ -248,6 +274,16 @@ export function QuizComponent({
 
   return (
     <div className="rounded-2xl border border-ink-200 bg-white p-6">
+      {/* Off-screen live region: transitions + timer warnings reach SR users (#218). */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="quiz-sr-announcement"
+        className="sr-only"
+      >
+        {liveMessage}
+      </div>
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
           <span>
