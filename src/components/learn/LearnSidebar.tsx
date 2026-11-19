@@ -352,12 +352,14 @@ export function LearnSidebar({
             'fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-in-out',
             drawerOpen ? 'translate-y-0' : 'translate-y-full',
           )}
-          style={{ maxHeight: '80vh' }}
+          style={{ maxHeight: '90vh' }}
         >
           <div className="flex justify-center pt-2 pb-1">
             <div className="h-1 w-10 rounded-full bg-ink-300" />
           </div>
-          {sidebarContent}
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 2rem)' }}>
+            {sidebarContent}
+          </div>
         </div>
       </>
     );
@@ -388,7 +390,7 @@ export function LearnSidebar({
       {collapsed ? (
         <div className="flex flex-col items-center gap-2 py-4">
           <Play className="h-5 w-5 text-ink-400" />
-          <span className="text-[10px] font-medium text-ink-500 rotate-180 writing-mode-vertical">
+          <span className="text-[10px] font-medium text-ink-500 w-4 h-20 flex items-center justify-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
             Curriculum
           </span>
         </div>

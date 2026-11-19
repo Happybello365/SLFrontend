@@ -243,7 +243,7 @@ export function FilterSidebar({
             onClick={onClose}
           />
           {/* Drawer */}
-          <div className="relative w-72 bg-white h-full shadow-xl overflow-y-auto p-5 animate-slide-up">
+          <div className="relative w-80 max-w-[85vw] sm:w-96 bg-white h-full shadow-xl overflow-y-auto p-4 sm:p-5 animate-slide-up">
             {content}
           </div>
         </div>
