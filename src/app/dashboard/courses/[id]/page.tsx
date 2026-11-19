@@ -8,7 +8,7 @@ import {
   Loader2, CheckCircle2, Lock,
 } from 'lucide-react';
 import { coursesApi, enrollmentsApi } from '@/lib/api/services';
-import { enrollInCourse } from '@/lib/stellar/contract';
+import { enrollInCourse, WrongNetworkError, UserRejectedError } from '@/lib/stellar/contract';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
 import {
   formatUsdc, formatDuration, levelChip, timeAgo, usdcToStroops,
@@ -29,6 +29,8 @@ export default function CourseDetailPage() {
   const [enrolling,  setEnrolling]  = useState(false);
   const [txStep,     setTxStep]     = useState('');
   const [error,      setError]      = useState<string | null>(null);
+  const [wrongNetwork, setWrongNetwork] = useState(false);
+  const [rejected,   setRejected]   = useState(false);
 
   useEffect(() => {
     coursesApi.get(id).then(setCourse).catch(console.error).finally(() => setLoading(false));
@@ -43,6 +45,8 @@ export default function CourseDetailPage() {
   const handleEnroll = async () => {
     if (!address || !course) return;
     setError(null);
+    setWrongNetwork(false);
+    setRejected(false);
     setEnrolling(true);
     try {
       setTxStep('Signing payment in Freighter…');
@@ -57,7 +61,15 @@ export default function CourseDetailPage() {
 
       router.push(`/dashboard/courses/${id}/learn`);
     } catch (err: any) {
-      setError(err?.message ?? 'Enrollment failed. Please try again.');
+      if (err instanceof WrongNetworkError) {
+        setWrongNetwork(true);
+        setError(err.message);
+      } else if (err instanceof UserRejectedError) {
+        setRejected(true);
+        setError('You rejected the payment in Freighter. Click "Enroll" again when you\'re ready to sign.');
+      } else {
+        setError(err?.message ?? 'Enrollment failed. Please try again.');
+      }
     } finally {
       setEnrolling(false);
       setTxStep('');
@@ -181,8 +193,20 @@ export default function CourseDetailPage() {
             </p>
 
             {error && (
-              <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-100">
-                <p className="text-xs text-red-700">{error}</p>
+              <div
+                role="alert"
+                data-testid={wrongNetwork ? 'wrong-network-error' : rejected ? 'rejected-error' : 'enroll-error'}
+                className={`mb-3 p-3 rounded-xl border ${
+                  wrongNetwork
+                    ? 'bg-amber-50 border-amber-200'
+                    : rejected
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-red-50 border-red-100'
+                }`}
+              >
+                <p className={`text-xs ${wrongNetwork ? 'text-amber-800' : rejected ? 'text-yellow-800' : 'text-red-700'}`}>
+                  {error}
+                </p>
               </div>
             )}
 
