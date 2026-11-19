@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { User } from '@/types';
 import { usersApi } from '@/lib/api/services';
+import { isFreighterInstalled } from '@/lib/stellar/freighter';
 
 const AUTH_TOKEN_KEY = 'sorobanlard_token';
 const AUTH_ADDRESS_KEY = 'sorobanlard_address';
@@ -61,6 +62,8 @@ interface AuthState {
    * `isConnected`: reconnecting or logging out clears it.
    */
   accountMismatch: boolean;
+  disconnectingWallet: boolean;
+  walletDisconnectError: string | null;
   setAuth:     (address: string, token: string, user: User, rememberMe?: boolean) => void;
   setAddress:  (address: string) => void;
   updateUser:  (patch: Partial<User>) => void;
@@ -79,11 +82,13 @@ interface AuthState {
    */
   clearAccountMismatch: () => void;
   logout:      () => void;
+  disconnectWallet: () => Promise<void>;
   rehydrate:   () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   address: null, token: null, user: null, isConnected: false, accountMismatch: false,
+  disconnectingWallet: false, walletDisconnectError: null,
 
   setAuth: (address, token, user, rememberMe = false) => {
     if (typeof window !== 'undefined') {
@@ -125,6 +130,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     clearPersistedAuth();
     set({ address: null, token: null, user: null, isConnected: false, accountMismatch: false });
+  },
+
+  disconnectWallet: async () => {
+    const address = get().address;
+    if (!address) return;
+    set({ disconnectingWallet: true });
+    try {
+      await usersApi.disconnectWallet();
+      clearPersistedAuth();
+      set({ address: null, token: null, user: null, isConnected: false, accountMismatch: false });
+    } catch (error) {
+      set({ walletDisconnectError: error.message });
+    } finally {
+      set({ disconnectingWallet: false });
+    }
   },
 
   rehydrate: () => {

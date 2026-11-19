@@ -8,7 +8,10 @@ import type {
   PaymentRequestPaymentMethodEvent,
   StripePaymentRequestButtonElementClickEvent,
 } from '@stripe/stripe-js';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { classifyFreighterError } from '@/lib/wallet/freighterErrors';
+
+export const WALLET_CONFIRMATION_TIMEOUT_MS = 45_000;
 
 type Wallet = 'applePay' | 'googlePay';
 
@@ -58,6 +61,9 @@ export function WalletPaymentButton({
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'insufficient' | 'timeout' | 'error'>('idle');
+  const [statusMessage, setStatusMessage] = useState('');
+  const confirmationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The Payment Request is created once per Stripe instance; later amount
   // changes go through `update()`, so keep the latest values in a ref.
@@ -112,12 +118,38 @@ export function WalletPaymentButton({
 
     const handlePaymentMethod = async (event: PaymentRequestPaymentMethodEvent) => {
       const { confirmPayment: confirm, onSuccess: succeed, onError: fail } = latest.current;
+      setPaymentStatus('pending');
+      setStatusMessage('Waiting for the payment to confirm on-chain…');
+      confirmationTimer.current = setTimeout(() => {
+        setPaymentStatus('timeout');
+        setStatusMessage('Confirmation is taking longer than expected. Check Freighter/network activity before retrying.');
+        setOpen(false);
+        event.complete('fail');
+      }, WALLET_CONFIRMATION_TIMEOUT_MS);
+
       try {
         await confirm(event.paymentMethod);
+        if (confirmationTimer.current) clearTimeout(confirmationTimer.current);
+        setPaymentStatus('idle');
+        setStatusMessage('');
         event.complete('success');
         setOpen(false);
         succeed(event.paymentMethod);
       } catch (error) {
+        if (confirmationTimer.current) clearTimeout(confirmationTimer.current);
+        const classified = classifyFreighterError(error);
+        const raw = classified.cause ?? String(error);
+        const insufficient = classified.kind === 'insufficient_balance';
+        if (insufficient) {
+          setPaymentStatus('insufficient');
+          setStatusMessage('Insufficient balance. Top up XLM or USDC in Freighter, then retry.');
+        } else if (classified.kind === 'network') {
+          setPaymentStatus('timeout');
+          setStatusMessage('The network response timed out. Check your connection and retry.');
+        } else {
+          setPaymentStatus('error');
+          setStatusMessage(classified.message);
+        }
         event.complete('fail');
         setOpen(false);
         fail(error);
@@ -130,6 +162,7 @@ export function WalletPaymentButton({
     return () => {
       paymentRequest.off('paymentmethod', handlePaymentMethod);
       paymentRequest.off('cancel', handleCancel);
+      if (confirmationTimer.current) clearTimeout(confirmationTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentRequest]);
@@ -156,11 +189,31 @@ export function WalletPaymentButton({
         />
       </div>
 
-      {sheetOpen && (
+      {(sheetOpen || paymentStatus === 'pending') && paymentStatus !== 'insufficient' && paymentStatus !== 'timeout' && paymentStatus !== 'error' && (
         <p role="status" className="flex items-center justify-center gap-2 text-sm text-ink-600">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Waiting for {WALLET_LABELS[wallet]}…
+          {paymentStatus === 'pending' ? statusMessage : `Waiting for ${WALLET_LABELS[wallet]}…`}
         </p>
+      )}
+
+      {paymentStatus !== 'idle' && paymentStatus !== 'pending' && (
+        <div role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-medium">{paymentStatus === 'insufficient' ? 'Insufficient balance' : paymentStatus === 'timeout' ? 'Confirmation timeout' : 'Payment could not be completed'}</p>
+              <p className="mt-1 text-xs text-red-700">{statusMessage}</p>
+              <button
+                type="button"
+                onClick={() => { setPaymentStatus('idle'); setStatusMessage(''); }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Try payment again
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-ink-500">

@@ -24,6 +24,7 @@
 
 export type FreighterErrorKind =
   | 'rejected'
+  | 'insufficient_balance'
   | 'submission_failed'
   | 'network'
   | 'unknown';
@@ -58,6 +59,13 @@ const NETWORK_PATTERNS: RegExp[] = [
   /timed? ?out/i,
   /connection (?:reset|refused|failed|aborted)/i,
   /load failed/i,
+];
+
+const INSUFFICIENT_BALANCE_PATTERNS: RegExp[] = [
+  /insufficient (?:balance|funds|reserve|fee)/i,
+  /underfunded/i,
+  /not enough (?:xlm|usdc|balance|funds)/i,
+  /tx_insufficient_balance/i,
 ];
 
 const SUBMISSION_PATTERNS: RegExp[] = [
@@ -119,6 +127,16 @@ export function classifyFreighterError(error: unknown): ClassifiedFreighterError
       kind: 'network',
       message: 'Couldn\'t reach the Stellar network.',
       action: 'Check your connection and try again. The course was not submitted on-chain.',
+      retryable: true,
+      cause: message,
+    };
+  }
+
+  if (matchesAny(message, INSUFFICIENT_BALANCE_PATTERNS)) {
+    return {
+      kind: 'insufficient_balance',
+      message: 'Your wallet has insufficient balance.',
+      action: 'Top up XLM or the required payment asset in Freighter, then try again.',
       retryable: true,
       cause: message,
     };

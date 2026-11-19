@@ -11,6 +11,9 @@ type SortDir = 'asc' | 'desc';
 
 interface StudentTableProps {
   rows: StudentEnrollmentRow[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   /** All unique courses for the filter dropdown */
   courseOptions: { id: string; title: string }[];
   selectedCourseId: string;
@@ -32,6 +35,9 @@ function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: Sort
 
 export function StudentTable({
   rows,
+  loading = false,
+  error = null,
+  onRetry,
   courseOptions,
   selectedCourseId,
   onCourseFilter,
@@ -148,10 +154,34 @@ export function StudentTable({
               </tr>
             </thead>
             <tbody>
-              {sortedRows.length === 0 && (
+              {loading && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-ink-400">
-                    No students found.
+                  <td colSpan={7} className="py-12 text-center text-sm text-ink-500" role="status">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-sorobanlard-primary animate-pulse" />
+                      Loading students…
+                    </span>
+                  </td>
+                </tr>
+              )}
+              {!loading && error && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <div role="alert" className="text-sm text-red-700">Couldn&apos;t load students</div>
+                    <p className="mt-1 text-xs text-ink-500">{error}</p>
+                    {onRetry && (
+                      <button type="button" onClick={onRetry} className="btn-secondary mt-4 inline-flex">
+                        Try again
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )}
+              {!loading && !error && sortedRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <p className="text-sm font-medium text-ink-700">No enrolled students yet</p>
+                    <p className="mt-1 text-xs text-ink-400">New enrollments will appear here.</p>
                   </td>
                 </tr>
               )}

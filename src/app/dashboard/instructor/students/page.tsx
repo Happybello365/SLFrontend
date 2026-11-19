@@ -59,14 +59,23 @@ export default function InstructorStudentsPage() {
   const [detail, setDetail] = useState<StudentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const loadStudents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await instructorAnalyticsApi.getStudents({ limit: 500 });
+      setAllRows(res.data ?? []);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to load students');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   /* fetch all students once */
   useEffect(() => {
-    instructorAnalyticsApi
-      .getStudents({ limit: 500 })
-      .then((res) => setAllRows(res.data ?? []))
-      .catch((e) => setError(e?.message ?? 'Failed to load students'))
-      .finally(() => setLoading(false));
-  }, []);
+    void loadStudents();
+  }, [loadStudents]);
 
   /* filtered rows */
   const filteredRows = useMemo(
@@ -119,15 +128,6 @@ export default function InstructorStudentsPage() {
   );
 
   /* ── render ── */
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <span className="h-2.5 w-2.5 rounded-full bg-sorobanlard-primary animate-pulse" />
-        <span className="ml-3 text-sm text-ink-500">Loading students…</span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* ── page header ── */}
@@ -176,16 +176,12 @@ export default function InstructorStudentsPage() {
         />
       </div>
 
-      {/* ── error banner ── */}
-      {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       {/* ── table + detail drawer ── */}
       <StudentTable
         rows={filteredRows}
+        loading={loading}
+        error={error}
+        onRetry={() => void loadStudents()}
         courseOptions={courseOptions}
         selectedCourseId={selectedCourseId}
         onCourseFilter={setSelectedCourseId}
