@@ -23,6 +23,12 @@ interface TagInputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  /**
+   * Visible label text for the text input. When provided, a `<label htmlFor={id}>`
+   * is rendered so screen readers announce the field's purpose on focus (#220).
+   * Omit when the caller already renders its own `<label htmlFor={id}>`.
+   */
+  label?: string;
 }
 
 export function TagInput({
@@ -32,7 +38,12 @@ export function TagInput({
   className,
   disabled = false,
   id,
+  label,
 }: TagInputProps) {
+  // Transient announcement for the latest add/remove action (#220). The
+  // persistent "X of 10 tags added" counter below never says *which* tag
+  // changed, so SR users can lose track of what just happened.
+  const [tagAnnouncement, setTagAnnouncement] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -87,6 +98,7 @@ export function TagInput({
       setSuggestions([]);
       setIsOpen(false);
       setActiveIndex(-1);
+      setTagAnnouncement(`Added tag ${trimmed}`);
       inputRef.current?.focus();
     },
     [atMax, onChange, value],
@@ -96,6 +108,7 @@ export function TagInput({
   const removeTag = useCallback(
     (tag: string) => {
       onChange(value.filter((t) => t !== tag));
+      setTagAnnouncement(`Removed tag ${tag}`);
       inputRef.current?.focus();
     },
     [onChange, value],
@@ -168,6 +181,26 @@ export function TagInput({
 
   return (
     <div className={cn('space-y-1.5', className)} data-tag-input>
+      {/* Visible label associated with the input via htmlFor (#220). Rendered
+          only when the caller passes `label`; otherwise the caller is
+          expected to supply its own `<label htmlFor={id}>`. */}
+      {label && id && (
+        <label htmlFor={id} className="block text-sm font-medium text-ink-700">
+          {label}
+        </label>
+      )}
+
+      {/* Transient add/remove announcement for screen readers (#220). */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="tag-input-sr-announcement"
+        className="sr-only"
+      >
+        {tagAnnouncement}
+      </div>
+
       {/* Tag count indicator */}
       <div
         className={cn(
@@ -216,27 +249,37 @@ export function TagInput({
           </span>
         ))}
 
-        {/* Text input */}
-        {!atMax && !disabled && (
-          <input
-            ref={inputRef}
-            id={id}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => suggestions.length > 0 && setIsOpen(true)}
-            placeholder={value.length === 0 ? placeholder : ''}
-            className="min-w-[8rem] flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
-            autoComplete="off"
-            aria-autocomplete="list"
-            aria-expanded={isOpen}
-            aria-controls={isOpen ? 'tag-suggestions' : undefined}
-            aria-activedescendant={
-              activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined
-            }
-            role="combobox"
-          />
+        {/* Text input — always rendered (just disabled at max / when disabled)
+            so the external `<label htmlFor={id}>` always has a programmatic
+            target (#220). */}
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => suggestions.length > 0 && setIsOpen(true)}
+          placeholder={value.length === 0 ? placeholder : ''}
+          disabled={disabled || atMax}
+          className={cn(
+            'min-w-[8rem] flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none',
+            (disabled || atMax) && 'cursor-not-allowed',
+          )}
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? 'tag-suggestions' : undefined}
+          aria-activedescendant={
+            activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined
+          }
+          aria-describedby={atMax && id ? `${id}-maxhint` : undefined}
+          role="combobox"
+        />
+        {atMax && id && (
+          <span id={`${id}-maxhint`} className="sr-only">
+            Maximum of {MAX_TAGS} tags reached. Remove a tag to add more.
+          </span>
         )}
       </div>
 
