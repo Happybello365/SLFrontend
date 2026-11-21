@@ -181,10 +181,10 @@ function CourseBrowsePageContent() {
     })
       .then((res) => {
         if (cancelled) return;
-        const filtered = applyClientFilters(res.courses);
+        const filtered = applyClientFilters(res.data);
         setCourses(filtered);
-        setTotal(res.total);
-        setHasMore(res.courses.length === PAGE_SIZE && filtered.length < res.total);
+        setTotal(res.meta.total);
+        setHasMore(res.data.length === PAGE_SIZE && filtered.length < res.meta.total);
       })
       .catch(() => {
         if (cancelled) return;
