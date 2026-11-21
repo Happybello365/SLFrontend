@@ -184,56 +184,27 @@ export function RevenueChart({
   }
 
   return (
-    // bg-semantic-bg-surface adapts: #f8f8ff (light) → #16131f (dark)
     <div className="w-full rounded-lg bg-semantic-bg-surface p-4">
       {(rangeLabel || exportFilename) && (
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <p className="text-xs text-semantic-text-muted">{rangeLabel}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 overflow-x-auto">
+          {rangeLabel && <p className="text-xs text-semantic-text-muted whitespace-nowrap">{rangeLabel}</p>}
           {exportFilename && (
             <button
               onClick={handleExportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-semantic-border text-semantic-text-body hover:bg-semantic-border-strong transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-semantic-border text-semantic-text-body hover:bg-semantic-border-strong transition-colors whitespace-nowrap flex-shrink-0"
               title="Download revenue data as CSV"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 flex-shrink-0" />
               Export CSV
             </button>
           )}
         </div>
       )}
-      <RevenueBarChart data={chartData} height={height} />
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartData}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--color-border-default)"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="month"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'var(--color-border-default)' }}
-          />
-          <YAxis
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'var(--color-border-default)' }}
-            tickFormatter={(value: number) => `$${(value / 1000).toFixed(0)}k`}
-          />
-          <Tooltip
-            content={<CustomTooltip />}
-            // Uses --color-brand-primary-rgb (74 66 184) so the tint adapts with the token
-            cursor={{ fill: 'rgb(var(--color-brand-primary-rgb) / 0.05)' }}
-          />
-          <Bar
-            dataKey="revenue"
-            fill="var(--color-brand-primary)"
-            radius={[8, 8, 0, 0]}
-            maxBarSize={60}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="overflow-x-auto -mx-4 sm:mx-0">
+        <div className="sm:overflow-visible">
+          <RevenueBarChart data={chartData} height={height} />
+        </div>
+      </div>
     </div>
   );
 }

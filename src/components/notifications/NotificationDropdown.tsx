@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, AlertCircle } from 'lucide-react';
 import { cn, timeAgo } from '@/lib/utils';
 import type { Notification } from '@/types';
 import { isToday } from 'date-fns';
@@ -134,7 +134,7 @@ function NotificationRow({ notification: n, onRead }: NotificationRowProps) {
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
 
-  const { notifications, loading, fetched, fetchNotifications, markRead, markAllRead } =
+  const { notifications, loading, fetched, error, fetchNotifications, markRead, markAllRead } =
     useNotificationStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -242,6 +242,20 @@ export function NotificationDropdown() {
               /* Loading state */
               <div className="flex justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-sorobanlard-primary" />
+              </div>
+            ) : error ? (
+              /* Error state */
+              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <AlertCircle className="h-8 w-8 text-red-400" />
+                <p className="text-sm text-white/80">Failed to load notifications</p>
+                <p className="text-xs text-white/50">{error.message}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchNotifications()}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-sorobanlard-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-sorobanlard-mid focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  Retry
+                </button>
               </div>
             ) : notifications.length === 0 ? (
               /* Empty state */
