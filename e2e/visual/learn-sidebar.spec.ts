@@ -97,7 +97,12 @@ test.describe('LearnSidebar Visual Regression @visual', () => {
     reviewCount: 127,
   };
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ context, page }) => {
+    // /dashboard/* is gated by middleware on the session cookie
+    await context.addCookies([
+      { name: 'sorobanlard_token', value: 'visual-test-token', url: 'http://localhost:3001' },
+    ]);
+
     await page.route('**/api/v1/courses/*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -105,6 +110,21 @@ test.describe('LearnSidebar Visual Regression @visual', () => {
         body: JSON.stringify({
           success: true,
           data: mockCourseDetail,
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/enrollments/*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'enrollment-test',
+            courseId: 'course-test',
+            lessonProgress: [{ lessonId: 'lesson-1', completed: true }],
+          },
         }),
       });
     });
@@ -129,10 +149,12 @@ test.describe('LearnSidebar Visual Regression @visual', () => {
     }) => {
       await page.setViewportSize(viewportSize);
 
-      await page.goto('/courses/test-course/learn');
+      // The learn page lives under /dashboard, not /courses
+      await page.goto('/dashboard/courses/course-test/learn');
       await page.waitForLoadState('networkidle');
 
-      await page.waitForSelector('[class*="Curriculum"]', { state: 'visible', timeout: 10000 }).catch(() => {});
+      // Wait for the curriculum sidebar to render real content before snapshotting
+      await page.getByText('Module 1: Basics').first().waitFor({ state: 'visible', timeout: 10000 });
 
       await page.waitForTimeout(1000);
 

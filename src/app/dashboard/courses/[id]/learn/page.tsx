@@ -213,16 +213,16 @@ export default function LearnPage() {
       )}
 
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-3">
           <Link
             href={`/dashboard/courses/${id}`}
-            className="flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900"
+            className="flex shrink-0 items-center gap-1 text-sm text-ink-500 hover:text-ink-900"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </Link>
-          <span className="text-sm font-medium text-ink-900">{course.title}</span>
+          <span className="min-w-0 truncate text-sm font-medium text-ink-900">{course.title}</span>
         </div>
 
         {activeLesson ? (
@@ -234,13 +234,13 @@ export default function LearnPage() {
               onAutoplayChange={handleAutoplayChange}
             />
 
-            <div className="mt-4 flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-ink-900">{activeLesson.title}</h1>
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <h1 className="min-w-0 break-words text-lg font-semibold text-ink-900">{activeLesson.title}</h1>
               <button
                 onClick={handleMarkComplete}
                 disabled={marking || isLessonCompleted(activeLesson.id)}
                 className={cn(
-                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  'flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                   isLessonCompleted(activeLesson.id)
                     ? 'bg-green-50 text-green-700'
                     : 'bg-saffron-500 text-white hover:bg-saffron-600',
@@ -295,7 +295,8 @@ export default function LearnPage() {
       </div>
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
-      <aside className="w-full shrink-0 border-t border-ink-100 md:w-80 md:border-l md:border-t-0">
+      {/* Below md the sidebar stacks under the player, so cap its height and let the lesson list scroll */}
+      <aside className="flex max-h-[50vh] w-full shrink-0 flex-col border-t border-ink-100 md:max-h-none md:w-80 md:border-l md:border-t-0">
         <div className="border-b border-ink-100 p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-ink-900">Progress</span>
@@ -330,7 +331,7 @@ export default function LearnPage() {
           </button>
         </div>
 
-        <div className="overflow-y-auto p-2">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {sidebarTab === 'lessons' &&
             course.modules?.map((module) => (
               <div key={module.id} className="mb-1">
