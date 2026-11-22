@@ -1,20 +1,49 @@
 'use client';
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { X } from 'lucide-react';
+import { coursesApi } from '@/lib/api/services';
 import { useCompareStore, MAX_COMPARE } from '@/lib/hooks/use-compare-store';
 import { cn } from '@/lib/utils';
 
 const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAYAAAC09K7GAAAAHklEQVQI12NgYGD4z8BQDwAEgAF/QualIQAAAABJRU5ErkJggg==';
 
+type DetailStatus = 'loading' | 'ready' | 'error';
+
 export function CompareBar() {
   const router = useRouter();
   const courses = useCompareStore((state) => state.courses);
   const remove = useCompareStore((state) => state.remove);
   const clear = useCompareStore((state) => state.clear);
+  const [detailStatus, setDetailStatus] = useState<Record<string, DetailStatus>>({});
+  // Courses whose detail request has already been made, so adding another course
+  // does not refetch the ones already loaded.
+  const requestedIds = useRef<Set<string>>(new Set());
 
+  const loadDetail = useCallback((courseId: string) => {
+    requestedIds.current.add(courseId);
+    setDetailStatus((prev) => ({ ...prev, [courseId]: 'loading' }));
+    coursesApi
+      .get(courseId)
+      .then((detail) => {
+        setDetailStatus((prev) => ({ ...prev, [courseId]: detail ? 'ready' : 'error' }));
+      })
+      .catch(() => {
+        setDetailStatus((prev) => ({ ...prev, [courseId]: 'error' }));
+      });
+  }, []);
+
+  useEffect(() => {
+    courses.forEach((course) => {
+      if (!requestedIds.current.has(course.id)) loadDetail(course.id);
+    });
+  }, [courses, loadDetail]);
+
+  // An empty selection hides the bar entirely: a sticky bar with nothing to compare
+  // would only cover page content.
   if (courses.length === 0) return null;
 
   return (
@@ -55,9 +84,29 @@ export function CompareBar() {
                       </div>
                     )}
                   </div>
-                  <span className="text-xs text-ink-700 max-w-[120px] truncate">
-                    {course.title}
-                  </span>
+                  <div className="min-w-0">
+                    <span className="block text-xs text-ink-700 max-w-[120px] truncate">
+                      {course.title}
+                    </span>
+                    {(detailStatus[course.id] ?? 'loading') === 'loading' && (
+                      <span role="status" className="block text-[10px] text-ink-400">
+                        Loading details...
+                      </span>
+                    )}
+                    {detailStatus[course.id] === 'error' && (
+                      <span role="alert" className="flex items-center gap-1 text-[10px] text-red-600 whitespace-nowrap">
+                        Couldn&apos;t load details.
+                        <button
+                          type="button"
+                          onClick={() => loadDetail(course.id)}
+                          aria-label={`Retry loading ${course.title}`}
+                          className="font-semibold underline underline-offset-2 hover:text-red-700"
+                        >
+                          Retry
+                        </button>
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={() => remove(course.id)}
                     aria-label={`Remove ${course.title} from comparison`}
