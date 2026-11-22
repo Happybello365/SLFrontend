@@ -82,7 +82,9 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // The root is the positioning context for the popover, so it can span the full
+    // picker width on narrow screens, where the custom trigger may wrap onto its own line.
+    <div className="relative flex flex-wrap items-center gap-2">
       {PRESETS.map((preset) => (
         <button
           key={preset.value}
@@ -98,7 +100,7 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
         </button>
       ))}
 
-      <div ref={popoverRef} className="relative">
+      <div ref={popoverRef}>
         <button
           onClick={() => setCustomOpen((o) => !o)}
           aria-haspopup="dialog"
@@ -119,7 +121,7 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
           <div
             role="dialog"
             aria-label="Select custom date range"
-            className="absolute right-0 mt-2 z-20 w-72 bg-white border border-ink-100 rounded-xl shadow-lg p-4 space-y-3"
+            className="absolute inset-x-0 top-full z-20 mt-2 bg-white border border-ink-100 rounded-xl shadow-lg p-4 space-y-3 sm:left-auto sm:right-0 sm:w-72"
           >
             <label className="block">
               <span className="block text-xs font-medium text-ink-600 mb-1">From</span>

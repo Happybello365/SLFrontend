@@ -50,22 +50,25 @@ function CustomTooltip(props: TooltipProps<number, string>) {
   );
 }
 
+/** Placeholder bar heights (%). Fixed rather than random so each render matches. */
+const SKELETON_BAR_HEIGHTS = [45, 62, 38, 70, 55, 80, 48, 66, 42, 74, 58, 52];
+
 /**
  * Loading skeleton for the chart
  */
-function ChartSkeleton({ height = 300 }: { height: number }) {
+function ChartSkeleton({ height = 300 }: { height: number | string }) {
   return (
     // bg-semantic-bg-subtle adapts: #eeedfe (light) → #1e1a2f (dark)
     <div
       style={{ height }}
       className="flex items-end justify-between gap-2 bg-semantic-bg-subtle rounded-lg p-4 animate-pulse"
     >
-      {Array.from({ length: 12 }).map((_, i) => (
+      {SKELETON_BAR_HEIGHTS.map((barHeight, i) => (
         // border-semantic-border used as a muted bar fill via bg
         <div
           key={i}
           className="flex-1 bg-semantic-border rounded-sm"
-          style={{ height: `${20 + Math.random() * 60}%` }}
+          style={{ height: `${barHeight}%` }}
         />
       ))}
     </div>
@@ -136,7 +139,8 @@ const RevenueBarChart = dynamic(
     }),
   {
     ssr: false,
-    loading: () => <ChartSkeleton height={300} />,
+    // Fill the fixed-height wrapper below so the placeholder matches the chart's height
+    loading: () => <ChartSkeleton height="100%" />,
   },
 );
 
@@ -201,7 +205,8 @@ export function RevenueChart({
         </div>
       )}
       <div className="overflow-x-auto -mx-4 sm:mx-0">
-        <div className="sm:overflow-visible">
+        {/* Fixed-height box: the dynamic-import placeholder and the chart take the same space */}
+        <div className="sm:overflow-visible" style={{ height }}>
           <RevenueBarChart data={chartData} height={height} />
         </div>
       </div>
