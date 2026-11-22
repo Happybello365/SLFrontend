@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
+import { LG_BREAKPOINT_PX, useCloseOnBreakpoint } from '@/lib/hooks/use-close-on-breakpoint';
 import { cn } from '@/lib/utils';
 import type { Category } from '@/types';
 
@@ -47,6 +48,9 @@ export function FilterSidebar({
   activeRating = '', activeDuration = '',
   onCategory, onLevel, onPrice, onRating, onDuration, onClearAll,
 }: Props) {
+  // The mobile drawer is hidden at lg and up; close it there so `open` never outlives the drawer.
+  useCloseOnBreakpoint(open, LG_BREAKPOINT_PX, onClose);
+
   const activeCount = [
     activeCategory,
     activeLevel,

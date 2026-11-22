@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { FilterPanel } from './FilterPanel';
 import { Button } from '@/components/ui/Button';
 import { useSearchStore } from '@/lib/hooks/use-search-store';
+import { LG_BREAKPOINT_PX, useCloseOnBreakpoint } from '@/lib/hooks/use-close-on-breakpoint';
 import { cn } from '@/lib/utils';
 import type { Course } from '@/types';
 
@@ -19,6 +20,9 @@ interface FilterDrawerProps {
 export function FilterDrawer({ open, onClose, courses, resultCount }: FilterDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const clearFilters = useSearchStore((s) => s.clearFilters);
+
+  // The panel is hidden at lg and up; close it there so the body scroll lock is released.
+  useCloseOnBreakpoint(open, LG_BREAKPOINT_PX, onClose);
 
   // Escape-to-close, focus trap entry, and body-scroll lock while open.
   useEffect(() => {
