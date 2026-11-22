@@ -136,14 +136,14 @@ export default function InstructorDashboardPage() {
             value: formatUsdc(thisMonthRevenue),
           },
         ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="card p-5">
+          <div key={label} className="card min-w-0 p-4 sm:p-5">
             <div className="flex items-center gap-3 mb-1">
               <div className="w-8 h-8 rounded-xl bg-saffron-50 flex items-center justify-center flex-shrink-0">
                 <Icon className="w-4 h-4 text-saffron-600" />
               </div>
-              <p className="text-xs text-ink-400">{label}</p>
+              <p className="min-w-0 text-xs text-ink-400">{label}</p>
             </div>
-            <p className="text-2xl font-bold text-ink-900">{value}</p>
+            <p className="break-words text-xl font-bold text-ink-900 sm:text-2xl">{value}</p>
           </div>
         ))}
       </div>
