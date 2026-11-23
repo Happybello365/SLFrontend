@@ -1,12 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { NotificationDropdown } from './NotificationDropdown';
-import * as notificationStoreModule from '@/lib/hooks/use-notification-store';
+import { useNotificationStore } from '@/lib/hooks/use-notification-store';
+import { notificationsApi } from '@/lib/api/services';
+import type { Notification } from '@/types';
 
-const mockNotifications = [
+// The dropdown navigates on row click; no app router is mounted in unit tests.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
+
+// Drive the real store (loading / error / data transitions) with a mocked API.
+vi.mock('@/lib/api/services', () => ({
+  notificationsApi: {
+    list: vi.fn(),
+    markRead: vi.fn().mockResolvedValue(undefined),
+    markAllRead: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+const listMock = notificationsApi.list as unknown as Mock<() => Promise<unknown>>;
+
+const mockNotifications: Notification[] = [
   {
     id: '1',
-    type: 'ENROLLMENT_CONFIRMED' as const,
+    type: 'ENROLLMENT_CONFIRMED',
     title: 'Enrollment Confirmed',
     message: 'You enrolled in a course',
     data: { courseId: 'course-1' },
@@ -15,7 +33,7 @@ const mockNotifications = [
   },
   {
     id: '2',
-    type: 'COURSE_COMPLETED' as const,
+    type: 'COURSE_COMPLETED',
     title: 'Course Completed',
     message: 'You completed a course',
     data: { courseId: 'course-2' },
@@ -24,162 +42,83 @@ const mockNotifications = [
   },
 ];
 
+/** Opens the bell trigger and returns the panel dialog. */
+function openPanel() {
+  fireEvent.click(screen.getByRole('button', { name: /^notifications/i }));
+  return screen.getByRole('dialog', { name: /notifications panel/i });
+}
+
 describe('NotificationDropdown', () => {
-  describe('Loading state', () => {
-    beforeEach(() => {
-      vi.spyOn(notificationStoreModule, 'useNotificationStore').mockReturnValue({
-        notifications: [],
-        loading: true,
-        fetched: false,
-        error: null,
-        fetchNotifications: vi.fn(),
-        markRead: vi.fn(),
-        markAllRead: vi.fn(),
-      });
-    });
-
-    it('shows loading spinner when fetching', async () => {
-      render(<NotificationDropdown />);
-
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
-
-      expect(screen.getByRole('progressbar', { hidden: true })).toBeInTheDocument();
-      expect(screen.queryByText(/you're all caught up/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/failed to load/i)).not.toBeInTheDocument();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useNotificationStore.setState({
+      notifications: [],
+      loading: false,
+      fetched: false,
+      error: null,
     });
   });
 
-  describe('Error state', () => {
-    beforeEach(() => {
-      vi.spyOn(notificationStoreModule, 'useNotificationStore').mockReturnValue({
-        notifications: [],
-        loading: false,
-        fetched: true,
-        error: new Error('API request failed'),
-        fetchNotifications: vi.fn(),
-        markRead: vi.fn(),
-        markAllRead: vi.fn(),
-      });
-    });
+  it('shows a loading indicator while notifications are being fetched', async () => {
+    listMock.mockReturnValueOnce(new Promise(() => {}));
 
-    it('shows error state when API fails', async () => {
-      render(<NotificationDropdown />);
+    render(<NotificationDropdown />);
+    const panel = openPanel();
 
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
-
-      expect(screen.getByText(/failed to load notifications/i)).toBeInTheDocument();
-      expect(screen.getByText(/api request failed/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
-      expect(screen.queryByText(/you're all caught up/i)).not.toBeInTheDocument();
-    });
-
-    it('calls fetchNotifications when retry button is clicked', async () => {
-      const mockFetch = vi.fn();
-      vi.spyOn(notificationStoreModule, 'useNotificationStore').mockReturnValue({
-        notifications: [],
-        loading: false,
-        fetched: true,
-        error: new Error('API request failed'),
-        fetchNotifications: mockFetch,
-        markRead: vi.fn(),
-        markAllRead: vi.fn(),
-      });
-
-      render(<NotificationDropdown />);
-
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
-
-      const retryButton = screen.getByRole('button', { name: /retry/i });
-      fireEvent.click(retryButton);
-
-      expect(mockFetch).toHaveBeenCalled();
-    });
+    expect(await within(panel).findByRole('status', { name: /loading notifications/i })).toBeInTheDocument();
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/you're all caught up/i)).not.toBeInTheDocument();
   });
 
-  describe('Empty state', () => {
-    beforeEach(() => {
-      vi.spyOn(notificationStoreModule, 'useNotificationStore').mockReturnValue({
-        notifications: [],
-        loading: false,
-        fetched: true,
-        error: null,
-        fetchNotifications: vi.fn(),
-        markRead: vi.fn(),
-        markAllRead: vi.fn(),
-      });
-    });
+  it('shows an error with a retry action when the request fails', async () => {
+    listMock.mockRejectedValueOnce(new Error('API request failed'));
 
-    it('shows empty state when there are no notifications', async () => {
-      render(<NotificationDropdown />);
+    render(<NotificationDropdown />);
+    const panel = openPanel();
 
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
-
-      expect(screen.getByText(/you're all caught up/i)).toBeInTheDocument();
-      expect(screen.getByText(/no notifications yet/i)).toBeInTheDocument();
-      expect(screen.queryByText(/failed to load/i)).not.toBeInTheDocument();
-    });
+    const alert = await within(panel).findByRole('alert');
+    expect(within(alert).getByText(/failed to load notifications/i)).toBeInTheDocument();
+    expect(within(alert).getByText(/api request failed/i)).toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(within(panel).queryByText(/you're all caught up/i)).not.toBeInTheDocument();
   });
 
-  describe('Success state', () => {
-    beforeEach(() => {
-      vi.spyOn(notificationStoreModule, 'useNotificationStore').mockReturnValue({
-        notifications: mockNotifications,
-        loading: false,
-        fetched: true,
-        error: null,
-        fetchNotifications: vi.fn(),
-        markRead: vi.fn(),
-        markAllRead: vi.fn(),
-      });
-    });
+  it('retries the request and renders the feed when the retry succeeds', async () => {
+    listMock
+      .mockRejectedValueOnce(new Error('API request failed'))
+      .mockResolvedValueOnce([mockNotifications[0]]);
 
-    it('renders notifications when data is available', async () => {
-      render(<NotificationDropdown />);
+    render(<NotificationDropdown />);
+    const panel = openPanel();
 
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
+    fireEvent.click(await within(panel).findByRole('button', { name: /retry/i }));
 
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
+    expect(await within(panel).findByText('Enrollment Confirmed')).toBeInTheDocument();
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+    expect(listMock).toHaveBeenCalledTimes(2);
+  });
 
-      expect(screen.getByText(/enrollment confirmed/i)).toBeInTheDocument();
-      expect(screen.getByText(/course completed/i)).toBeInTheDocument();
-      expect(screen.queryByText(/you're all caught up/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/failed to load/i)).not.toBeInTheDocument();
-    });
+  it('shows the empty state when the request succeeds with no notifications', async () => {
+    listMock.mockResolvedValueOnce([]);
 
-    it('shows mark all read button when there are unread notifications', async () => {
-      render(<NotificationDropdown />);
+    render(<NotificationDropdown />);
+    const panel = openPanel();
 
-      const trigger = screen.getByRole('button', { name: /notifications/i });
-      fireEvent.click(trigger);
+    expect(await within(panel).findByText(/you're all caught up/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/no notifications yet/i)).toBeInTheDocument();
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('status', { name: /loading notifications/i })).not.toBeInTheDocument();
+  });
 
-      await waitFor(() => {
-        expect(screen.getByRole('dialog', { name: /notifications panel/i })).toBeInTheDocument();
-      });
+  it('renders notifications with the unread count and mark-all-read action', async () => {
+    listMock.mockResolvedValueOnce(mockNotifications);
 
-      expect(screen.getByRole('button', { name: /mark all read/i })).toBeInTheDocument();
-    });
+    render(<NotificationDropdown />);
+    const panel = openPanel();
+
+    expect(await within(panel).findByText('Enrollment Confirmed')).toBeInTheDocument();
+    expect(within(panel).getByText('Course Completed')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: /mark all read/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 unread/i })).toBeInTheDocument();
   });
 });

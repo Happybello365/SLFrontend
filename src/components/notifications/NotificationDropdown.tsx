@@ -238,15 +238,20 @@ export function NotificationDropdown() {
 
           {/* Body */}
           <div className="max-h-[420px] overflow-y-auto">
-            {loading ? (
+            {/* Not yet fetched counts as loading, so the first open never flashes the empty state */}
+            {loading || !fetched ? (
               /* Loading state */
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-sorobanlard-primary" />
+              <div
+                role="status"
+                aria-label="Loading notifications"
+                className="flex justify-center py-10"
+              >
+                <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-sorobanlard-primary" />
               </div>
             ) : error ? (
               /* Error state */
-              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-                <AlertCircle className="h-8 w-8 text-red-400" />
+              <div role="alert" className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <AlertCircle aria-hidden="true" className="h-8 w-8 text-red-400" />
                 <p className="text-sm text-white/80">Failed to load notifications</p>
                 <p className="text-xs text-white/50">{error.message}</p>
                 <button

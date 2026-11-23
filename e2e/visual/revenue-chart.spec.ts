@@ -28,7 +28,12 @@ test.describe('RevenueChart Visual Regression @visual', () => {
     },
   };
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ context, page }) => {
+    // /dashboard/* is gated by middleware on the session cookie
+    await context.addCookies([
+      { name: 'sorobanlard_token', value: 'visual-test-token', url: 'http://localhost:3001' },
+    ]);
+
     await page.route('**/api/v1/instructor/dashboard*', async (route) => {
       await route.fulfill({
         status: 200,
