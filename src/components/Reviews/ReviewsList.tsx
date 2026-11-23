@@ -23,9 +23,20 @@ type VoteState = "up" | "down" | null;
 
 interface ReviewsListProps {
   reviews: Review[];
+  /** True while the reviews are being fetched. Takes precedence over every other state. */
+  isLoading?: boolean;
+  /** Failure message from fetching the reviews. Shows the error state when set. */
+  error?: string | null;
+  /** Retry handler. The error state only shows a "Try again" action when this is provided. */
+  onRetry?: () => void;
 }
 
-export default function ReviewsList({ reviews }: ReviewsListProps) {
+export default function ReviewsList({
+  reviews,
+  isLoading = false,
+  error = null,
+  onRetry,
+}: ReviewsListProps) {
   const [sortBy, setSortBy] = useState("mostRecent");
   const [reviewList, setReviewList] = useState(reviews);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -88,30 +99,75 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        data-testid="reviews-loading"
+        className="rounded-xl border border-ink-100 p-8 text-center text-sm text-ink-500"
+      >
+        Loading reviews...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="reviews-error"
+        className="flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-8 text-center"
+      >
+        <p className="text-sm font-semibold text-red-700">Couldn&apos;t load reviews</p>
+        <p className="text-xs text-red-600">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-lg bg-sorobanlard-primary px-4 py-2 text-xs font-semibold text-white transition-colors hover:opacity-90"
+          >
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <RatingSummary
-        averageRating={averageRating}
-        totalReviews={reviewList.length}
-        distribution={distribution}
-      />
+      {reviewList.length > 0 && (
+        <>
+          <RatingSummary
+            averageRating={averageRating}
+            totalReviews={reviewList.length}
+            distribution={distribution}
+          />
 
-      <div className="flex justify-end">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
-        >
-          <option value="mostRecent">Most Recent</option>
-          <option value="mostHelpful">Most Helpful</option>
-          <option value="highestRated">Highest Rated</option>
-          <option value="lowestRated">Lowest Rated</option>
-        </select>
-      </div>
+          <div className="flex justify-end">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
+            >
+              <option value="mostRecent">Most Recent</option>
+              <option value="mostHelpful">Most Helpful</option>
+              <option value="highestRated">Highest Rated</option>
+              <option value="lowestRated">Lowest Rated</option>
+            </select>
+          </div>
+        </>
+      )}
 
       {sortedReviews.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-ink-200 p-8 text-center">
-          <p className="text-ink-500">No reviews yet.</p>
+        <div
+          data-testid="reviews-empty"
+          className="rounded-xl border border-dashed border-ink-200 p-8 text-center"
+        >
+          <p className="font-medium text-ink-700">No reviews yet</p>
+          <p className="mt-1 text-sm text-ink-500">
+            Reviews from students will appear here once they share their experience.
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -229,7 +285,6 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
         </div>
       )}
 
-      {/* Empty State */}
     </div>
   );
 }
