@@ -1,108 +1,128 @@
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TopBar } from './TopBar';
 
-// Mock next/navigation — TopBar uses usePathname for active link state
-const mockPathname = vi.fn(() => '/dashboard');
+const mockAuthState = {
+  isConnected: false,
+  user: null as { name?: string } | null,
+  address: null as string | null,
+};
 
-vi.mock('next/navigation', () => ({
-  usePathname: () => mockPathname(),
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-    prefetch: vi.fn(),
-  }),
+vi.mock('@/lib/hooks/use-auth-store', () => ({
+  useAuthStore: () => mockAuthState,
 }));
 
-// Mock next/link to render a plain anchor
-vi.mock('next/link', () => ({
-  default: function MockLink({ href, children, ...rest }: any) {
-    return (
-      <a href={typeof href === 'string' ? href : String(href)} {...rest}>
-        {children}
-      </a>
-    );
+const mockList = vi.fn();
+vi.mock('@/lib/api/services', () => ({
+  notificationsApi: {
+    list: (...args: unknown[]) => mockList(...args),
   },
 }));
 
-// Mock next/image
-vi.mock('next/image', () => ({
-  default: function MockImage({ src, alt, className }: any) {
-    return <img src={src} alt={alt} className={className} />;
-  },
+vi.mock('@/components/layout/ThemeToggle', () => ({
+  default: () => <button type="button">Theme</button>,
 }));
 
-// Mock lib/utils cn helper
 vi.mock('@/lib/utils', () => ({
-  cn: (...args: string[]) => args.filter(Boolean).join(' '),
+  shortAddress: (value: string) => (value ? `${value.slice(0, 4)}...${value.slice(-4)}` : ''),
 }));
+
+function setAuth(state: Partial<typeof mockAuthState>) {
+  mockAuthState.isConnected = state.isConnected ?? false;
+  mockAuthState.user = state.user ?? null;
+  mockAuthState.address = state.address ?? null;
+}
 
 describe('TopBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPathname.mockReturnValue('/dashboard');
+    setAuth({});
+    mockList.mockResolvedValue({ data: [] });
   });
 
-  describe('Populated state', () => {
-    it('renders the brand/logo link', () => {
-      render(<TopBar />);
-      const links = screen.getAllByRole('link');
-      expect(links.length).toBeGreaterThan(0);
-    });
+  it('renders the brand and login/signup links when disconnected', () => {
+    render(<TopBar />);
 
-    it('renders navigation links', () => {
-      render(<TopBar />);
-      expect(screen.getByRole('navigation')).toBeInTheDocument();
-    });
-
-    it('marks the active link based on the current pathname', () => {
-      render(<TopBar />);
-      const activeLinks = screen
-        .getAllByRole('link')
-        .filter((link) => link.getAttribute('aria-current') === 'page');
-      expect(activeLinks.length).toBeGreaterThanOrEqual(0);
-    });
+    expect(screen.getByText('SorobanLard')).toBeInTheDocument();
+    expect(screen.getAllByText('Login').length).toBeGreaterThan(0);
+    expect(screen.getByText('Signup')).toBeInTheDocument();
   });
 
-  describe('Empty state', () => {
-    it('renders without crashing when no pathname is available', () => {
-      mockPathname.mockReturnValue('');
-      render(<TopBar />);
-      expect(screen.getByRole('navigation')).toBeInTheDocument();
-    });
+  it('shows the empty notification state (no badge) when there are no unread items', async () => {
+    setAuth({ isConnected: true, user: { name: 'Ada' }, address: '0x1234567890' });
+    mockList.mockResolvedValue({ data: [] });
+
+    render(<TopBar />);
+
+    await waitFor(() => expect(mockList).toHaveBeenCalledWith({ unreadOnly: true }));
+    expect(screen.getByLabelText('Notifications')).toBeInTheDocument();
+    expect(screen.queryByText('9+')).not.toBeInTheDocument();
   });
 
-  describe('Loading state', () => {
-    it('renders a stable shell while navigation data resolves', () => {
-      mockPathname.mockReturnValue('/dashboard');
-      render(<TopBar />);
-      // The bar should always expose its navigation landmark regardless of state
-      expect(screen.getByRole('navigation')).toBeInTheDocument();
-    });
+  it('shows the populated notification badge and user avatar when connected', async () => {
+    setAuth({ isConnected: true, user: { name: 'Ada' }, address: '0x1234567890' });
+    mockList.mockResolvedValue({ data: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+
+    render(<TopBar />);
+
+    await waitFor(() => expect(screen.getByText('3')).toBeInTheDocument());
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('Ada')).toBeInTheDocument();
   });
 
-  describe('User interaction', () => {
-    it('toggles the mobile menu when the menu button is clicked', () => {
-      render(<TopBar />);
-      const menuButton = screen.queryByRole('button', { name: /menu/i });
-      if (menuButton) {
-        fireEvent.click(menuButton);
-        expect(menuButton).toBeInTheDocument();
-      } else {
-        // Component may not expose a menu button; ensure it still renders
-        expect(screen.getByRole('navigation')).toBeInTheDocument();
-      }
-    });
+  it('caps the notification badge at 9+', async () => {
+    setAuth({ isConnected: true, user: { name: 'Ada' }, address: '0x1234567890' });
+    mockList.mockResolvedValue({ data: Array.from({ length: 12 }, (_, i) => ({ id: i })) });
 
-    it('renders clickable links that point to valid hrefs', () => {
-      render(<TopBar />);
-      const links = screen.getAllByRole('link');
-      links.forEach((link) => {
-        expect(link).toHaveAttribute('href');
-      });
-    });
+    render(<TopBar />);
+
+    await waitFor(() => expect(screen.getByText('9+')).toBeInTheDocument());
+  });
+
+  it('falls back to zero notifications when the API fails', async () => {
+    setAuth({ isConnected: true, user: { name: 'Ada' }, address: '0x1234567890' });
+    mockList.mockRejectedValue(new Error('boom'));
+
+    render(<TopBar />);
+
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    expect(screen.queryByText('9+')).not.toBeInTheDocument();
+  });
+
+  it('toggles the categories dropdown on click', () => {
+    render(<TopBar />);
+
+    const categoriesButton = screen.getByRole('button', { name: /categories/i });
+    expect(categoriesButton).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(categoriesButton);
+    expect(categoriesButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Creative Arts')).toBeInTheDocument();
+    expect(screen.getByText('Photography')).toBeInTheDocument();
+
+    fireEvent.click(categoriesButton);
+    expect(categoriesButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Creative Arts')).not.toBeInTheDocument();
+  });
+
+  it('updates the search input value as the user types', () => {
+    render(<TopBar />);
+
+    const input = screen.getByPlaceholderText('Search for courses, skills, and instructors');
+    fireEvent.change(input, { target: { value: 'tailoring' } });
+    expect(input).toHaveValue('tailoring');
+  });
+
+  it('opens and closes the mobile menu', () => {
+    render(<TopBar />);
+
+    const openButton = screen.getByRole('button', { name: 'Open menu' });
+    fireEvent.click(openButton);
+
+    expect(screen.getByRole('button', { name: 'Close menu' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search courses')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close menu' }));
+    expect(screen.queryByPlaceholderText('Search courses')).not.toBeInTheDocument();
   });
 });
